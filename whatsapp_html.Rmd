@@ -1,0 +1,455 @@
+---
+title: "whatsapp_html"
+author: "Christian Rohrsen"
+date: "31 Mai 2020"
+output: html_document
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Whatsapp Sonja und Chis
+
+Let´s see what we analyse
+
+
+```{r, echo=FALSE,include=FALSE}
+
+## Import libraries
+library("lubridate")
+library("ggplot2")
+library(tm)
+library("ggimage")
+library("tidyr")
+library("tidytext")
+library("stopwords")
+library(wordcloud)
+library("rwhatsapp")
+library(syuzhet)
+library(purrr)
+
+chat_file <- "../ChatWhatsApp.txt"
+
+chat <- rwa_read(chat_file)
+# chat
+
+library("dplyr")
+chat <- chat %>% 
+  filter(!is.na(author)) # remove messages without author
+chat <- chat %>% 
+  filter(author != "13 - Sonia Rohrsen")
+# chat
+
+theme_set(theme_minimal())
+
+```
+
+
+## Amount of messages over time
+
+We are writing very little, specially this year
+
+```{r, echo=FALSE}
+## Messaging over time
+
+chat %>%
+  mutate(day = date(time)) %>%
+  count(day) %>%
+  ggplot(aes(x = day, y = n)) +
+  geom_bar(stat = "identity") +
+  ylab("") + xlab("") +
+  ggtitle("Messages per day")
+
+```
+
+
+## Amount of messages from each user
+
+Sonja a couple more but almost the same
+
+```{r, echo=FALSE}
+## Amount of messages for each user
+chat %>%
+  mutate(day = date(time)) %>%
+  count(author) %>%
+  ggplot(aes(x = reorder(author, n), y = n)) +
+  geom_bar(stat = "identity") +
+  ylab("") + xlab("") +
+  coord_flip() +
+  ggtitle("Number of messages")
+
+
+```
+
+
+## Amount of multimedia shared from each user
+
+The same! 96 each
+
+```{r, echo=FALSE}
+## Amount of multimedia sent from each user
+chat %>%
+  mutate(day = date(time)) %>%
+  filter(text == "<Multimedia omitido>") %>%
+  count(author) %>%
+  ggplot(aes(x = reorder(author, n), y = n)) +
+  geom_bar(stat = "identity") +
+  ylab("") + xlab("") +
+  coord_flip() +
+  ggtitle("Number of multimedia shared")
+```
+
+
+## Which emojis are we using??
+
+Por lo visto nos reimos jijij
+```{r, echo=FALSE}
+## Emojis
+# chat %>%
+#   unnest(emoji) %>%
+#   count(author, emoji, sort = TRUE) %>%
+#   group_by(author) %>%
+#   top_n(n = 6, n) %>%
+#   ggplot(aes(x = reorder(emoji, n), y = n, fill = author)) +
+#   geom_col(show.legend = FALSE) +
+#   ylab("") +
+#   xlab("") +
+#   coord_flip() +
+#   facet_wrap(~author, ncol = 2, scales = "free_y")  +
+#   ggtitle("Most often used emojis")
+
+
+## More emojis
+emoji_data <- rwhatsapp::emojis %>% # data built into package
+  mutate(hex_runes1 = gsub("\\s[[:alnum:]]+", "", hex_runes)) %>% # ignore combined emojis
+  mutate(emoji_url = paste0("https://abs.twimg.com/emoji/v2/72x72/", 
+                            tolower(hex_runes1), ".png"))
+
+chat %>%
+  unnest(emoji) %>%
+  count(author, emoji, sort = TRUE) %>%
+  group_by(author) %>%
+  top_n(n = 6, n) %>%
+  left_join(emoji_data, by = "emoji") %>% 
+  ggplot(aes(x = reorder(emoji, n), y = n, fill = author)) +
+  geom_col(show.legend = FALSE) +
+  ylab("") +
+  xlab("") +
+  coord_flip() +
+  geom_image(aes(y = n + 20, image = emoji_url)) +
+  facet_wrap(~author, ncol = 2, scales = "free_y") +
+  ggtitle("Most often used emojis") +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+
+```
+
+## Which words are we using the most??
+
+
+```{r, echo=FALSE}
+# Remove punctuation, Numbers, special characters and other unwanted things and stem all the words.
+to_remove <- c(stopwords( "es"),
+               "multimedia",
+               "omitido",
+               "k",
+               "x",
+               "si",
+               "d",
+               "ok",
+               "cn",
+               "x",
+               "xk",
+               "llamada perdida"
+               )#Define all the words which are not required
+
+chat$text <- tolower(chat$text) #Turn the data into lower case
+chat$text <- removeWords(chat$text, to_remove)
+chat$text <- removePunctuation(chat$text)
+chat$text <- removeNumbers(chat$text)
+
+chat %>%
+  unnest_tokens(input = text,
+                output = word) %>%
+  # filter(!word %in% to_remove) %>%
+  count(author, word, sort = TRUE) %>%
+  group_by(author) %>%
+  top_n(n = 20, n) %>%
+  ggplot(aes(x = reorder_within(word, n, author), y = n, fill = author)) +
+  geom_col(show.legend = FALSE) +
+  ylab("") +
+  xlab("") +
+  coord_flip() +
+  facet_wrap(~author, ncol = 2, scales = "free_y") +
+  scale_x_reordered() +
+  ggtitle("Most often used words")
+
+
+```
+
+## What words are we using specifically?
+
+So this is using an algorithm to try to extract the words that we use specifically more than the others in the chat
+
+```{r, echo=FALSE}
+## with td-idf
+chat %>%
+  unnest_tokens(input = text,
+                output = word) %>%
+  select(word, author) %>%
+  filter(!word %in% to_remove) %>%
+  mutate(word = gsub(".com", "", word)) %>%
+  mutate(word = gsub("^gag", "9gag", word)) %>%
+  count(author, word, sort = TRUE) %>%
+  bind_tf_idf(term = word, document = author, n = n) %>%
+  filter(n > 6) %>%
+  group_by(author) %>%
+  top_n(n = 6, tf_idf) %>%
+  ggplot(aes(x = reorder_within(word, n, author), y = n, fill = author)) +
+  geom_col(show.legend = FALSE) +
+  ylab("") +
+  xlab("") +
+  coord_flip() +
+  facet_wrap(~author, ncol = 2, scales = "free_y") +
+  scale_x_reordered() +
+  ggtitle("Important words using tf–idf by author")
+
+
+```
+
+## Sonjalata uses more vocabulary!!
+
+Joe con tus 774 palabras no?
+jiji
+
+```{r, echo=FALSE}
+## lexical diversity
+
+chat %>%
+  unnest_tokens(input = text,
+                output = word) %>%
+  filter(!word %in% to_remove) %>%
+  group_by(author) %>%
+  summarise(lex_diversity = n_distinct(word)) %>%
+  arrange(desc(lex_diversity)) %>%
+  ggplot(aes(x = reorder(author, lex_diversity),
+             y = lex_diversity,
+             fill = author)) +
+  geom_col(show.legend = FALSE) +
+  scale_y_continuous(expand = (mult = c(0, 0, 0, 500))) +
+  geom_text(aes(label = scales::comma(lex_diversity)), hjust = -0.1) +
+  ylab("unique words") +
+  xlab("") +
+  ggtitle("Lexical Diversity") +
+  coord_flip()
+
+
+
+```
+
+## What are the most frequent words used by Sonja and Chis?
+
+Trying to get the words that no one else is using
+
+```{r, echo=FALSE}
+## Check lexicon by user
+quien<-"Chis"
+# quien<-"Sonia Rohrsen"
+
+o_words <- chat %>%
+  unnest_tokens(input = text,
+                output = word) %>%
+  filter(author != quien) %>% 
+  count(word, sort = TRUE) 
+
+chat %>%
+  unnest_tokens(input = text,
+                output = word) %>%
+  filter(author == quien) %>% 
+  count(word, sort = TRUE) %>% 
+  filter(!word %in% o_words$word) %>% # only select words nobody else uses
+  top_n(n = 18, n) %>%
+  ggplot(aes(x = reorder(word, n), y = n)) +
+  geom_col(show.legend = FALSE) +
+  ylab("") + xlab("") +
+  coord_flip() +
+  ggtitle(paste0("Unique words of ",quien))
+
+quien<-"Sonia Rohrsen"
+
+o_words_c<-o_words
+o_words <- chat %>%
+  unnest_tokens(input = text,
+                output = word) %>%
+  filter(author != quien) %>% 
+  count(word, sort = TRUE) 
+
+chat %>%
+  unnest_tokens(input = text,
+                output = word) %>%
+  filter(author == quien) %>% 
+  count(word, sort = TRUE) %>% 
+  filter(!word %in% o_words$word) %>% # only select words nobody else uses
+  top_n(n = 20, n) %>%
+  ggplot(aes(x = reorder(word, n), y = n)) +
+  geom_col(show.legend = FALSE) +
+  ylab("") + xlab("") +
+  coord_flip() +
+  ggtitle(paste0("Unique words of ",quien))
+
+o_words<-rbind(o_words,o_words_c)
+```
+
+## Wordcloud
+
+This is a way of finding words that we use more frequently and we make a wordcloud just for fun
+```{r, echo=FALSE}
+#########################################################
+######################   Sentiment analysis      #############           #############################################################
+
+
+# Read and load text file in R
+
+# library(readtext) #Load Required package >setwd("/Users/Desktop/RDirectory")
+# TextData <- readtext(chat_file)
+# TextData <- as.data.frame(TextData)
+
+# Remove punctuation, Numbers, special characters and other unwanted things and stem all the words.
+# library(tm)
+# mystopwords <- c("", "","","", "", "", stopwords("es")) #Define all the words which are not required
+# 
+# CleanData <- tolower(chat$text) #Turn the data into lower case
+# CleanData <- removeWords(CleanData, mystopwords)
+# CleanData <- removePunctuation(CleanData)
+# CleanData <- removeNumbers(CleanData)
+# CleanData <- stemmer(CleanData, rm.bracket = TRUE)
+
+# Make a word-cloud with according to the frequency of the word used
+
+# library(qdap)
+# TextFrequency <- freq_terms(CleanData, at.least = 1)
+
+wordcloud(o_words$word, o_words$n, colors = o_words$n, max.words = 200)
+
+
+```
+
+## En espaniol 
+
+# Para este análisis de sentimiento usaremos el léxico Afinn. Este es un conjunto de palabras, puntuadas de acuerdo a qué tan 
+# positivamente o negativamente son percibidas. Las palabras que son percibidas de manera positiva tienen puntuaciones de -4 
+# a -1; y las positivas de 1 a 4.
+
+
+```{r, echo=FALSE, include=FALSE}
+afinn <- read.csv("lexico_afinn.en.es.csv", stringsAsFactors = F, fileEncoding = "latin1") %>% 
+  tbl_df()
+
+chat_afinn <- 
+  chat %>%
+  unnest_tokens(input = "text", output = "Palabra") %>%
+  inner_join(afinn, ., by = "Palabra") %>%
+  mutate(Tipo = ifelse(Puntuacion > 0, "Positiva", "Negativa")) 
+
+# Obtenemos también una puntuación por tuit, usando group_by() y summarise() de dplyr, y la agregamos chat para usarla 
+# después. Tambien asignamos a los chat sin puntuación positiva o negativa un valor de 0, que indica neutralidad. 
+
+chat2 <-
+  chat_afinn %>%
+  group_by(author) %>%
+  summarise(Puntuacion_chat = mean(Puntuacion)) %>%
+  left_join(chat, ., by = "author") %>% 
+  mutate(Puntuacion_chat = ifelse(is.na(Puntuacion_chat), 0, Puntuacion_chat))
+
+```
+
+Explorando los datos, medias por día
+Empecemos revisando cuántas palabras en total y cuantas palabras únicas ha usado cada autor
+Total de palabras utilizadas reconocidas por la lista de sentimiento
+Únicas
+
+```{r, echo=FALSE}
+
+# Explorando los datos, medias por día
+# Empecemos revisando cuántas palabras en total y cuantas palabras únicas ha usado cada autor
+# Total de palabras utilizadas reconocidas por la lista de sentimiento
+# Únicas
+chat_afinn %>% 
+  group_by(author) %>% 
+  distinct(Palabra) %>% 
+  count()
+```
+
+
+
+```{r, echo=FALSE}
+# Y veamos también las palabras positivas y negativas más usadas por cada uno de ellos.
+
+map(c("Positiva", "Negativa"), function(sentimiento) {
+  chat_afinn %>%
+    filter(Tipo ==  sentimiento) %>%
+    group_by(author) %>%
+    count(Palabra, sort = T) %>%
+    top_n(n = 10, wt = n) %>%
+    ggplot() +
+    aes(Palabra, n, fill = author) +
+    geom_col() +
+    facet_wrap("author", scales = "free") +
+    scale_y_continuous(expand = c(0, 0)) +
+    coord_flip() +
+    labs(title = sentimiento)
+})
+```
+
+## Como evolucionan nuestros comentarios positivos y negativos en el tiempo
+
+Como deseamos observar tendencias, vamos a obtener la media de sentimientos por día de cada autor.
+Por encima de cero es positivo y por debajo negativo.
+
+```{r, echo=FALSE}
+# Como deseamos observar tendencias, vamos a obtener la media de sentimientos por día de cada autor
+# format(chat_afinn$time,format='%Y%m%d')
+
+chat_afinn_fecha <-
+  chat_afinn %>%
+  group_by(author) %>%
+  mutate(Suma = mean(Puntuacion)) %>%
+  group_by(author, time) %>%
+  summarise(Media = mean(Puntuacion))
+
+chat_afinn_fecha %>%
+  ggplot() +
+  aes(time, Media, color = author) +
+  geom_hline(yintercept = 0, alpha = .35) +
+  geom_line() +
+  facet_grid(author~.) +
+  theme(legend.position = "none")
+```
+
+
+## Now let´s try sentiment analysis
+
+This is a way to find the sentiment of our sentences. For instance if we write in the sentence "Sonjalata que fea eres, te odio", el programa va a ver palabras como "fea" y "odio" y lo va a clasificar en "cabreado".
+
+Aunque en realidad aqui lo he hecho distinto. He cogido la lista de palabras que utilizamos y un programa las clasifica segun en que grupo lo ve. Lo tengo que modificar porque intenta reconocer las palabras en ingles y tengo que cambiarlo para que identifique palabras en espaniol
+
+```{r, echo=FALSE}
+# Sentiment Analysis: Calls the NRC sentiment dictionary to calculate the presence of eight different emotions and their corresponding valence in a text file.
+
+Sentiments <- get_nrc_sentiment(o_words$word)
+
+Sentiments <- cbind("Words" = o_words$word, Sentiments)
+
+SentimentsScore <- data.frame("Score" = colSums(Sentiments[2:11]))
+
+TotalSentiments <- cbind("Sentiments" = rownames(SentimentsScore), SentimentsScore)
+
+rownames(TotalSentiments) <- NULL
+
+# Visualisation of the sentiments extracted from the texts
+
+ggplot(data = TotalSentiments, aes(x = Sentiments, y = Score)) + geom_bar(stat = "identity", aes(fill = Sentiments))
+
+```
