@@ -338,9 +338,9 @@ wordcloud(o_words$word, o_words$n, colors = o_words$n, max.words = 200)
 
 ## En espaniol 
 
-# Para este análisis de sentimiento usaremos el léxico Afinn. Este es un conjunto de palabras, puntuadas de acuerdo a qué tan 
-# positivamente o negativamente son percibidas. Las palabras que son percibidas de manera positiva tienen puntuaciones de -4 
-# a -1; y las positivas de 1 a 4.
+Para este análisis de sentimiento usaremos el léxico Afinn. Este es un conjunto de palabras, puntuadas de acuerdo a qué tan 
+positivamente o negativamente son percibidas. Las palabras que son percibidas de manera positiva tienen puntuaciones de -4 
+a -1; y las positivas de 1 a 4.
 
 
 ```{r, echo=FALSE, include=FALSE}
