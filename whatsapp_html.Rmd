@@ -305,7 +305,7 @@ o_words<-rbind(o_words,o_words_c)
 ## Wordcloud
 
 This is a way of finding words that we use more frequently and we make a wordcloud just for fun
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE}
 #########################################################
 ######################   Sentiment analysis      #############           #############################################################
 
@@ -384,7 +384,7 @@ chat_afinn %>%
 
 
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE}
 # Y veamos también las palabras positivas y negativas más usadas por cada uno de ellos.
 
 map(c("Positiva", "Negativa"), function(sentimiento) {
@@ -435,7 +435,7 @@ This is a way to find the sentiment of our sentences. For instance if we write i
 
 Aunque en realidad aqui lo he hecho distinto. He cogido la lista de palabras que utilizamos y un programa las clasifica segun en que grupo lo ve. Lo tengo que modificar porque intenta reconocer las palabras en ingles y tengo que cambiarlo para que identifique palabras en espaniol
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE}
 # Sentiment Analysis: Calls the NRC sentiment dictionary to calculate the presence of eight different emotions and their corresponding valence in a text file.
 
 Sentiments <- get_nrc_sentiment(o_words$word)
