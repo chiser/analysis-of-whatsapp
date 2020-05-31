@@ -218,7 +218,7 @@ chat %>%
 
 
 ```
-
+d
 ## Sonjalata uses more vocabulary!!
 
 Joe con tus 774 palabras no?
