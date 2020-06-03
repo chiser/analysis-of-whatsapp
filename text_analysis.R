@@ -104,19 +104,49 @@ chat %>%
   ggtitle("Most often used words")
 
 library("stopwords")
-to_remove <- c(stopwords(language = "de"),
+to_remove <- c(stopwords( "es"),
+               stopwords( "en"),
+               stopwords( "de"),
                "multimedia",
-               "omitido"
-               # "que",
-               # "a",
-               # "el",
-               # "y",
-               # "no",
-               # "la",
-               # "ya",
-               # "de"
-               )
+               "omitido",
+               "k",
+               "x",
+               "si",
+               "d",
+               "ok",
+               "cn",
+               "x",
+               "u",
+               "q",
+               "xk",
+               "llamada perdida",
+               "luisa",
+               "sobrina",
+               "mama",
+               "sonia",
+               "kaj",
+               "hermana",
+               "rohrsen",
+               "christian",
+               "lulu",
+               "ruth",
+               "selina",
+               "anja",
+               "<U+07E1>",
+               "<U+0C8E>",
+               "<U+0C90>",
+               "<U+3050>",
+               "<U+0C8F>",
+               "<U+0C8E>",
+               "<U+0C93>",
+               "alemania"
+)#Define all the words which are not required
 
+chat$text<-gsub("[^\x01-\x7F]", "", chat$text)
+chat$text <- tolower(chat$text) #Turn the data into lower case
+chat$text <- removeWords(chat$text, to_remove)
+chat$text <- removePunctuation(chat$text)
+chat$text <- removeNumbers(chat$text)
 
 chat %>%
   unnest_tokens(input = text,
@@ -124,13 +154,13 @@ chat %>%
   filter(!word %in% to_remove) %>%
   count(author, word, sort = TRUE) %>%
   group_by(author) %>%
-  top_n(n = 20, n) %>%
+  top_n(n = 10, n) %>%
   ggplot(aes(x = reorder_within(word, n, author), y = n, fill = author)) +
   geom_col(show.legend = FALSE) +
   ylab("") +
   xlab("") +
   coord_flip() +
-  facet_wrap(~author, ncol = 2, scales = "free_y") +
+  facet_wrap(~author, ncol = 5, scales = "free_y") +
   scale_x_reordered() +
   ggtitle("Most often used words")
 
@@ -153,7 +183,7 @@ chat %>%
   ylab("") +
   xlab("") +
   coord_flip() +
-  facet_wrap(~author, ncol = 2, scales = "free_y") +
+  facet_wrap(~author, ncol = 5, scales = "free_y") +
   scale_x_reordered() +
   ggtitle("Important words using tf–idf by author")
 
@@ -200,6 +230,32 @@ chat %>%
   coord_flip() +
   ggtitle(paste0("Unique words of ",quien))
 
+for (i in unique(chat$author)){
+  
+  quien<-i
+  
+  o_words <- chat %>%
+    unnest_tokens(input = text,
+                  output = word) %>%
+    filter(author != quien) %>% 
+    count(word, sort = TRUE) 
+  
+  print(
+  chat %>%
+    unnest_tokens(input = text,
+                  output = word) %>%
+    filter(author == quien) %>% 
+    count(word, sort = TRUE) %>% 
+    filter(!word %in% o_words$word) %>% # only select words nobody else uses
+    top_n(n = 20, n) %>%
+    ggplot(aes(x = reorder(word, n), y = n)) +
+    geom_col(show.legend = FALSE) +
+    ylab("") + xlab("") +
+    coord_flip() +
+    ggtitle(paste0("Unique words of ",quien))
+  )
+  
+}
 
 ##########################################################################################################
 ######################   Sentiment analysis                 #########################################
@@ -230,7 +286,12 @@ library(wordcloud)
 
 # TextFrequency <- freq_terms(CleanData, at.least = 1)
 
-wordcloud(o_words$word, o_words$n, colors = o_words$n, max.words = 200)
+freq_words <- chat %>%
+  unnest_tokens(input = text,
+                output = word) %>% 
+  count(word, sort = TRUE) 
+
+wordcloud(freq_words$word, freq_words$n, colors = freq_words$n, max.words = 200)
 
 # Sentiment Analysis: Calls the NRC sentiment dictionary to calculate the presence of eight different emotions and their corresponding valence in a text file.
 library(syuzhet)
